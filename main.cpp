@@ -2,6 +2,8 @@
 
 #include "mbed.h"
 #include "arm_book_lib.h"
+#include <vector>
+#include <string>
 
 //=====[Defines]===============================================================
 
@@ -46,8 +48,15 @@ UnbufferedSerial uartUsb(USBTX, USBRX, 115200);
 
 AnalogIn lm35(A1);
 
-DigitalOut keypadRowPins[KEYPAD_NUMBER_OF_ROWS] = {PB_3, PB_5, PC_7, PA_15};
-DigitalIn keypadColPins[KEYPAD_NUMBER_OF_COLS]  = {PB_12, PB_13, PB_15, PC_6};
+
+/* Modifico para usar la clase vector en lugar de arrays
+ * DigitalOut keypadRowPins[KEYPAD_NUMBER_OF_ROWS] = {PB_3, PB_5, PC_7, PA_15};
+ * DigitalIn keypadColPins[KEYPAD_NUMBER_OF_COLS]  = {PB_12, PB_13, PB_15, PC_6};
+ */
+
+vector<DigitalOut> keypadRowPins({PB_3, PB_5, PC_7, PA_15});
+vector<DigitalIn> keypadColPins({PB_12, PB_13, PB_15, PC_6});
+
 
 //=====[Declaration and initialization of public global variables]=============
 
@@ -88,7 +97,7 @@ char matrixKeypadIndexToCharArray[] = {
 };
 matrixKeypadState_t matrixKeypadState;
 
-int eventsIndex            = 0;
+int eventsIndex = 0;
 systemEvent_t arrayOfStoredEvents[EVENT_MAX_STORAGE];
 
 //=====[Declarations (prototypes) of public functions]=========================
@@ -537,7 +546,38 @@ void matrixKeypadInit()
     }
 }
 
-char matrixKeypadScan()
+
+void showKeypadFsmVariables(const char* estado,
+                            const int debounce,
+                            const int fila,
+                            const int columna,
+                            const char* tecla
+                            )
+{
+    static char keypadFsmInfo[500];
+
+    keypadFsmInfo[0] = '\0';
+
+    strcat(keypadFsmInfo, "Variable de estado: ");
+    strcat(keypadFsmInfo, estado);
+
+    strcat(keypadFsmInfo, "\r\nVariable de debounce: ");
+    strcat(keypadFsmInfo, to_string(debounce).c_str());
+
+    strcat(keypadFsmInfo, "\r\nVariable de fila: ");
+    strcat(keypadFsmInfo, to_string(debounce).c_str());
+
+    strcat(keypadFsmInfo, "\r\nVariable de columna: ");
+    strcat(keypadFsmInfo, to_string(debounce).c_str());
+
+    strcat(keypadFsmInfo, "\r\nVariable de tecla: ");
+    strcat(keypadFsmInfo, tecla);
+    strcat( keypadFsmInfo, "\r\n" );
+
+    //uartUsb.write(keypadFsmInfo,strlen(keypadFsmInfo));
+}
+
+char matrixKeypadScan(const char* estado)
 {
     int row = 0;
     int col = 0;
@@ -553,11 +593,17 @@ char matrixKeypadScan()
 
         for( col=0; col<KEYPAD_NUMBER_OF_COLS; col++ ) {
             if( keypadColPins[col] == OFF ) {
+                showKeypadFsmVariables(estado,
+                                       accumulatedDebounceMatrixKeypadTime,
+                                       row,
+                                       col,
+                                       &matrixKeypadIndexToCharArray[row*KEYPAD_NUMBER_OF_ROWS + col]
+                                       );
                 return matrixKeypadIndexToCharArray[row*KEYPAD_NUMBER_OF_ROWS + col];
             }
         }
     }
-    return '\0';
+    return '\0'; 
 }
 
 char matrixKeypadUpdate()
@@ -568,7 +614,7 @@ char matrixKeypadUpdate()
     switch( matrixKeypadState ) {
 
     case MATRIX_KEYPAD_SCANNING:
-        keyDetected = matrixKeypadScan();
+        keyDetected = matrixKeypadScan("SCANNING");
         if( keyDetected != '\0' ) {
             matrixKeypadLastKeyPressed = keyDetected;
             accumulatedDebounceMatrixKeypadTime = 0;
@@ -579,7 +625,7 @@ char matrixKeypadUpdate()
     case MATRIX_KEYPAD_DEBOUNCE:
         if( accumulatedDebounceMatrixKeypadTime >=
             DEBOUNCE_KEY_TIME_MS ) {
-            keyDetected = matrixKeypadScan();
+            keyDetected = matrixKeypadScan("DEBOUNCE");
             if( keyDetected == matrixKeypadLastKeyPressed ) {
                 matrixKeypadState = MATRIX_KEYPAD_KEY_HOLD_PRESSED;
             } else {
@@ -591,7 +637,7 @@ char matrixKeypadUpdate()
         break;
 
     case MATRIX_KEYPAD_KEY_HOLD_PRESSED:
-        keyDetected = matrixKeypadScan();
+        keyDetected = matrixKeypadScan("KEY HOLD PRESSED");
         if( keyDetected != matrixKeypadLastKeyPressed ) {
             if( keyDetected == '\0' ) {
                 keyReleased = matrixKeypadLastKeyPressed;
