@@ -49,7 +49,8 @@ UnbufferedSerial uartUsb(USBTX, USBRX, 115200);
 AnalogIn lm35(A1);
 
 
-/* Modifico para usar la clase vector en lugar de arrays
+/* PINES PARA EL TECLADO MATRICIAL
+ * Modifico para usar la clase vector en lugar de arrays
  * DigitalOut keypadRowPins[KEYPAD_NUMBER_OF_ROWS] = {PB_3, PB_5, PC_7, PA_15};
  * DigitalIn keypadColPins[KEYPAD_NUMBER_OF_COLS]  = {PB_12, PB_13, PB_15, PC_6};
  */
@@ -230,6 +231,7 @@ void alarmDeactivationUpdate()
         char keyReleased = matrixKeypadUpdate();
         if( keyReleased != '\0' && keyReleased != '#' ) {
             keyPressed[matrixKeypadCodeIndex] = keyReleased;
+            printf("%c\r\n",keyReleased);
             if( matrixKeypadCodeIndex >= NUMBER_OF_KEYS ) {
                 matrixKeypadCodeIndex = 0;
             } else {
@@ -353,6 +355,9 @@ void uartTask()
             
         case 's':
         case 'S':
+            // INICIALIZACION RTC
+            // Si se desconecta se pierde la cuenta del tiempo, habria que mantenerlo energizado para que eso no pase
+            // Se puede energizar externamente por el pin vbat sin necesidad de la conexion de vdd
             struct tm rtcTime;
             int strIndex;
                     
@@ -418,6 +423,7 @@ void uartTask()
                         
             case 't':
             case 'T':
+                // VERIFICACION RTC
                 time_t epochSeconds;
                 epochSeconds = time(NULL);
                 sprintf ( str, "Date and Time = %s", ctime(&epochSeconds));
@@ -546,17 +552,17 @@ void matrixKeypadInit()
     }
 }
 
-
 void showKeypadFsmVariables(const char* estado,
                             const int debounce,
                             const int fila,
                             const int columna,
-                            const char* tecla
+                            const char tecla
                             )
 {
     static char keypadFsmInfo[500];
 
     keypadFsmInfo[0] = '\0';
+    char strTecla[2] = {tecla,'\0'};
 
     strcat(keypadFsmInfo, "Variable de estado: ");
     strcat(keypadFsmInfo, estado);
@@ -565,16 +571,16 @@ void showKeypadFsmVariables(const char* estado,
     strcat(keypadFsmInfo, to_string(debounce).c_str());
 
     strcat(keypadFsmInfo, "\r\nVariable de fila: ");
-    strcat(keypadFsmInfo, to_string(debounce).c_str());
+    strcat(keypadFsmInfo, to_string(fila).c_str());
 
     strcat(keypadFsmInfo, "\r\nVariable de columna: ");
-    strcat(keypadFsmInfo, to_string(debounce).c_str());
+    strcat(keypadFsmInfo, to_string(columna).c_str());
 
     strcat(keypadFsmInfo, "\r\nVariable de tecla: ");
-    strcat(keypadFsmInfo, tecla);
+    strcat(keypadFsmInfo, strTecla);
     strcat( keypadFsmInfo, "\r\n" );
 
-    //uartUsb.write(keypadFsmInfo,strlen(keypadFsmInfo));
+    uartUsb.write(keypadFsmInfo,strlen(keypadFsmInfo));
 }
 
 char matrixKeypadScan(const char* estado)
@@ -597,7 +603,7 @@ char matrixKeypadScan(const char* estado)
                                        accumulatedDebounceMatrixKeypadTime,
                                        row,
                                        col,
-                                       &matrixKeypadIndexToCharArray[row*KEYPAD_NUMBER_OF_ROWS + col]
+                                       matrixKeypadIndexToCharArray[row*KEYPAD_NUMBER_OF_ROWS + col]
                                        );
                 return matrixKeypadIndexToCharArray[row*KEYPAD_NUMBER_OF_ROWS + col];
             }
